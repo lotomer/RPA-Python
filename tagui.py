@@ -2,7 +2,7 @@
 # Apache License 2.0, Copyright 2019 Tebel.Automation Private Limited
 # https://github.com/tebelorg/RPA-Python/blob/master/LICENSE.txt
 __author__ = 'Ken Soh <opensource@tebel.org>'
-__version__ = '1.47.0'
+__version__ = '1.47.1'
 
 import subprocess
 import os
@@ -215,7 +215,21 @@ def _tagui_delta(base_directory = None):
     for delta_file in delta_list:
         tagui_delta_url = 'https://raw.githubusercontent.com/tebelorg/Tump/master/TagUI-Python/' + delta_file
         tagui_delta_file = base_directory + '/' + 'src' + '/' + delta_file
-        if not download(tagui_delta_url, tagui_delta_file): return False
+	# modified by lotomer 20220521 begin
+        tagui_delta_file_previous = base_directory_previous + '/' + 'src' + '/' + delta_file
+        if not os.path.isfile(tagui_delta_file):
+            base_directory_previous = base_directory + '_previous'
+            if os.path.isfile(tagui_delta_file_previous):
+                # move from previous
+                print('file exists: %s, rename to %s' % (tagui_delta_file_previous, tagui_delta_file) )
+                import shutil
+                shutil.move(tagui_delta_file_previous, tagui_delta_file)
+            else:
+                print('file not exists: %s, will download...' % tagui_delta_file_previous)
+                if not download(tagui_delta_url, tagui_delta_file): return False
+        else:
+            print('file exists: %s, skip' % (tagui_delta_file) )
+	# modified by lotomer 20220521 end
 
     # make sure execute permission is there for .tagui/src/tagui and end_processes
     if platform.system() in ['Linux', 'Darwin']:
@@ -325,7 +339,9 @@ def setup():
         show_error('[RPA][ERROR] - unknown ' + platform.system() + ' operating system to setup TagUI')
         return False
     
-    if not os.path.isfile('rpa_python.zip'):
+    # modified by lotomer 20220521 begin
+    local_tagui_zip_file = home_directory + '/' + tagui_zip_file
+    if not os.path.isfile(local_tagui_zip_file):
         # primary installation pathway by downloading from internet, requiring internet access
         print('[RPA][INFO] - downloading TagUI (~200MB) and unzipping to below folder...')
         print('[RPA][INFO] - ' + home_directory)
@@ -348,10 +364,11 @@ def setup():
         print('[RPA][INFO] - ' + home_directory)
 
         import shutil
-        shutil.move('rpa_python.zip', home_directory + '/' + tagui_zip_file)
+        shutil.move(local_tagui_zip_file, home_directory + '/' + tagui_zip_file)
 
         if not os.path.isdir(home_directory + '/tagui'): os.mkdir(home_directory + '/tagui')
-        unzip(home_directory + '/' + tagui_zip_file, home_directory + '/tagui')
+        #unzip(home_directory + '/' + tagui_zip_file, home_directory + '/tagui')
+        unzip(home_directory + '/' + tagui_zip_file, home_directory)
         if not os.path.isfile(home_directory + '/' + 'tagui' + '/' + 'src' + '/' + 'tagui'):
             show_error('[RPA][ERROR] - unable to unzip TagUI to ' + home_directory)
             return False
@@ -371,19 +388,19 @@ def setup():
         # next rename extracted tagui folder (verified earlier) to .tagui
         os.rename(home_directory + '/' + 'tagui', tagui_directory)
 
-        # finally remove .tagui_previous folder if it exists
-        if os.path.isdir(tagui_directory + '_previous'):
-            import shutil
-            shutil.rmtree(tagui_directory + '_previous')
 
     # after unzip, remove downloaded zip file to save disk space 
-    if os.path.isfile(home_directory + '/' + tagui_zip_file):
-        os.remove(home_directory + '/' + tagui_zip_file)
+    #if os.path.isfile(local_tagui_zip_file):
+    #    os.remove(local_tagui_zip_file)
 
     # download stable delta files from tagui cutting edge version
     print('[RPA][INFO] - done. syncing TagUI with stable cutting edge version')
     if not _tagui_delta(tagui_directory): return False
-
+    # finally remove .tagui_previous folder if it exists
+    if os.path.isdir(tagui_directory + '_previous'):
+        import shutil
+        shutil.rmtree(tagui_directory + '_previous')
+    # modified by lotomer 20220521 end
     # perform Linux specific setup actions
     if platform.system() == 'Linux':
         # zipfile extractall does not preserve execute permissions
@@ -1415,7 +1432,7 @@ def upload(element_identifier = None, filename_to_upload = None):
 
 def download(download_url = None, filename_to_save = None):
     """function for python 2/3 compatible file download from url"""
-
+    print('download %s ...' % download_url)
     if download_url is None or download_url == '':
         show_error('[RPA][ERROR] - download URL missing for download()')
         return False
